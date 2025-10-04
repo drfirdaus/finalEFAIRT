@@ -1,0 +1,472 @@
+---
+title: "Final EFA Attitude"
+author: "firdaus"
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: left
+    toc-depth: 6
+    number-sections: true
+    self-contained: true
+editor: visual
+---
+
+This analysis is for Attitude section, with selection threshold higher (FL =\>0.5), communality =\> 0.5
+
+# Preliminaries
+
+## Load libraries
+
+```{r}
+library(foreign)  # for importing SPSS data
+library(psych)  # for psychometrics
+library(lattice)  # easy to plot multivariate plots
+library(readxl)
+library(dplyr)
+```
+
+## Load dataset
+
+```{r}
+data1= read_xlsx("EFA_Attitude_V1.xlsx")
+```
+
+```{r}
+names(data1)
+```
+
+```{r}
+head(data1)
+```
+
+## Coding the answers
+
+```{r}
+# Define mapping functions
+likert_map <- function(x) {
+  recode <- c(
+    "Sangat tidak setuju" = 1,
+    "Tidak setuju"        = 2,
+    "Tidak pasti"         = 3,
+    "Setuju"              = 4,
+    "Sangat setuju"       = 5
+  )
+  recode[match(tolower(x), tolower(names(recode)))]
+}
+
+likert_reverse <- function(x) {
+  recode <- c(
+    "Sangat tidak setuju" = 5,
+    "Tidak setuju"        = 4,
+    "Tidak pasti"         = 3,
+    "Setuju"              = 2,
+    "Sangat setuju"       = 1
+  )
+  recode[match(tolower(x), tolower(names(recode)))]
+}
+
+# List of reverse-coded items
+reverse_items <- c("A7","A8","A9","A10","A11","A12","A13",
+                   "A20","A21","A23","A25","A27","A29")
+
+# Apply transformation from data1 -> data2
+data2 <- data1
+
+for (col in names(data2)) {
+  if (col %in% reverse_items) {
+    data2[[col]] <- likert_reverse(data2[[col]])
+  } else {
+    data2[[col]] <- likert_map(data2[[col]])
+  }
+}
+
+# Convert all to numeric
+data2 <- as.data.frame(lapply(data2, as.numeric))
+
+```
+
+```{r}
+head(data2)
+```
+
+```{r}
+str(data2)
+```
+
+# Exploratory factor analysis
+
+## Descriptive statistics
+
+```{r}
+describe(data2)
+```
+
+## % of response to options per item
+
+```{r}
+response.frequencies(data2)
+```
+
+## Normality of data
+
+### Univariate normality
+
+#### Histogram
+
+```{r}
+cat(names(data2), sep = " + ")
+```
+
+```{r}
+histogram(~ A1 + A2 + A3 + A4 + A5 + A6 + A7 + A8 + A9 + A10 + A11 + A12 + A13 + A14 + A15 + A16 + A17 + A18 + A19 + A20 + A21 + A22 + A23 + A24 + A25 + A26 + A27 + A28 + A29 + A30,
+          data = data2)
+```
+
+By eye-balling method, most of item answers were not normality distributed
+
+#### Shapiro Wilk's test
+
+```{r}
+mapply(shapiro.test, data2)
+```
+
+All item were not normally distributed
+
+#### Multivariate normality
+
+To say the data are multivariate normal:
+
+-   *z*-kurtosis \< 5 ([Bentler, 2006](https://wnarifin.github.io/lecture/mstat/efa_medstat_practical.html#ref-bentler2006)) and the *P*-value should be ≥ 0.05
+
+-   The plot should also form a straight line ([Arifin, 2015](https://wnarifin.github.io/lecture/mstat/efa_medstat_practical.html#ref-arifin2015))
+
+Run Mardia’s multivariate normality test,
+
+```{r}
+mardia(data2)
+```
+
+Kurtosis \< 0.001, multivariate not normally distributed
+
+## Step 1
+
+### Check suitability of data for analysis
+
+#### Kaiser-Meyer-Olkin (KMO) Measure of Sampling Adequacy (MSA)
+
+```{r}
+KMO(data2)
+```
+
+Our MSA is meritorious
+
+#### Bartlet's test of sphericity
+
+```{r}
+cortest.bartlett(data2)
+```
+
+*P*-value \< 0.05, significant. Items are correlated and worthwhile for factor analysis
+
+### Determine the number of factors
+
+#### Eigen value & scree plot
+
+```{r}
+scree = scree(data2)
+print(scree)
+```
+
+Eigen values of factors \> 1 = 4
+
+5 dots are above the Eigen values = 1
+
+Thus, based on our judgement on the scree plot and eigenvalues (of factor analysis), the suitable number of factors = 4 or 5
+
+#### Parallel analysis
+
+```{r}
+parallel = fa.parallel(data2, fm = "pa", fa = "fa")
+```
+
+There are five dots above the dashed lines. This is suggestive of 5 factors
+
+#### Very simple structure (VSS) criterion & Velicer's minimum average partial (MAP) criterion)
+
+```{r}
+vss(data2)
+```
+
+VSS complexity of 1 indicates 3/5 factors (`vss1` largest at 1 and 2 factors) while MAP suggest 6 factors.
+
+The suggestive factors are from 1 - 6 factors
+
+## Step 2
+
+### Run EFA 5 factors
+
+After running EFA 5 factors, we have it not suitable due to presence of only 2 items in PA 5
+
+**Summary EFA 5 Factors**
+
+**PA1** : A1, A2, A3, A4, A5, A6
+
+**PA2** : A7, A8, A9
+
+**PA3** : A14,A15,A16,A17,A18,A19,A22
+
+**PA4** : A10, A11, A12, A13
+
+**PA5** : A27, A29
+
+### **Run EFA 4 factors**
+
+**Summary EFA 4 Factors**
+
+**PA1** : A1, A2, A3, A4, A5, A6
+
+**PA2** : A7, A8, A9
+
+**PA3** : A14, A15, A16, A17, A18, A19, A22
+
+**PA4** : A10, A11, A12, A13
+
+We chose 3 Factors because overall Factor Loading for each item is higher in EFA 3 factors compared to EFA 4 factors
+
+### Run EFA 3 factors
+
+Cut off factor loading based on Hair (2019) ( =\> 0.5 practically significant structure)
+
+```{r}
+fa = fa(data2, nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa, cut = .5, digits = 3)  # cut = .3 to view only FLs > 0.3
+```
+
+**Poor items identified**
+
+A13 (poor FL and communality)
+
+A20 (poor FL and communality)
+
+A21 (poor FL and communality)
+
+A23 (poor FL and communality)
+
+A24 (poor FL and communality)
+
+A25 (poor FL and communality)
+
+A26 (poor FL and communality)
+
+A30 (poor FL and communality)
+
+A12 (poor communality)
+
+A27 (poor communality)
+
+A28 (poor communality)
+
+No factor with cross-loading
+
+Factor correlation is all \<0.85
+
+```         
+      PA1   PA3   PA2
+PA1 1.000 0.593 0.281
+PA3 0.593 1.000 0.185
+```
+
+## Step 3
+
+### Item A13 Removal
+
+```{r}
+fa1 = fa(subset(data2, select = -A13), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa1, cut = .5, digits = 3)
+```
+
+Poor FL & Communality : A12, A20, A21, A23, A24, A25, A26, A30
+
+Poor communality : A27, A28, A29, A30
+
+#### Remove A13 & A12
+
+```{r}
+fa2 = fa(subset(data2, select = -c(A13, A12)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa2, cut = .5, digits = 3)
+```
+
+Poor FL & Communality : A20, A21, A23, A24, A25, A26, A30
+
+Poor communality : A10, A11, A27, A28, A29
+
+#### Remove A13, A12, A20
+
+```{r}
+fa3 = fa(subset(data2, select = -c(A13, A12, A20)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa3, cut = .5, digits = 3)
+
+```
+
+Poor FL : A21, A23, A24, A25, A26, A30
+
+Poor Comm : A10, A11, A27, A28
+
+#### Remove A13, A12, A20, A21
+
+```{r}
+fa4 = fa(subset(data2, select = -c(A13, A12, A20,A21)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa4, cut = .5, digits = 3)
+```
+
+Poor FL : A23, A24, A26, A30
+
+Poor Comm : A10, A11, A25, A27, A28, A29
+
+#### Remove A13, A12, A20, A21, A23
+
+```{r}
+fa5 = fa(subset(data2, select = -c(A13, A12, A20,A21,A23)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa5, cut = .5, digits = 3)
+```
+
+Poor FL : A24, A26, A30
+
+Poor Comm : A10, A11, A25, A27, A28, A29
+
+#### Remove A13, A12, A20, A21, A23, A24
+
+```{r}
+fa6 = fa(subset(data2, select = -c(A13, A12, A20,A21,A23, A24)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa6, cut = .5, digits = 3)
+```
+
+Poor FL : A25,A26, A30
+
+Poor Comm : A10, A11, A27, A28, A29
+
+#### Remove A13, A12, A20, A21, A23, A24, A25
+
+```{r}
+fa7 = fa(subset(data2, select = -c(A13, A12, A20,A21,A23, A24, A25)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa7, cut = .5, digits = 3)
+```
+
+Poor FL : A26, A27, A29, A30
+
+Poor Comm : A10, A11, A28
+
+#### Remove A13, A12, A20, A21, A23, A24, A25, A26
+
+```{r}
+fa8 = fa(subset(data2, select = -c(A13, A12, A20,A21,A23, A24, A25, A26)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa8, cut = .5, digits = 3)
+```
+
+Poor FL : A27, A29, A30
+
+Poor Comm : A10, A11, A28
+
+#### Remove A13, A12, A20, A21, A23, A24, A25, A26, A27
+
+```{r}
+fa9 = fa(subset(data2, select = -c(A13, A12, A20,A21,A23, A24, A25, A26, A27)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa9, cut = .5, digits = 3)
+```
+
+Poor FL : A10, A11, A29, A30
+
+Poor Comm : A28
+
+#### Remove A13, A12, A20, A21, A23, A24, A25, A26, A27, A10
+
+```{r}
+fa10 = fa(subset(data2, select = -c(A13, A12, A20,A21,A23, A24, A25, A26, A27,A10)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa10, cut = .5, digits = 3)
+```
+
+Poor FL : A11, A29, A30
+
+Poor Comm : A28
+
+#### Remove A13, A12, A20, A21, A23, A24, A25, A26, A27, A10, A11
+
+```{r}
+fa11 = fa(subset(data2, select = -c(A13, A12, A20,A21,A23, A24, A25, A26, A27,A10,A11)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa11, cut = .5, digits = 3)
+```
+
+Poor FL : A29, A30
+
+Poor Comm : A28
+
+#### Remove A13, A12, A20, A21, A23, A24, A25, A26, A27, A10, A11,A29
+
+```{r}
+fa12 = fa(subset(data2, select = -c(A13, A12, A20,A21,A23, A24, A25, A26, A27,A10,A11,A29)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa12, cut = .5, digits = 3)
+```
+
+Poor FL : A30
+
+Poor Comm : A28
+
+#### Remove A13, A12, A20, A21, A23, A24, A25, A26, A27, A10, A11,A29,A30
+
+```{r}
+fa13 = fa(subset(data2, select = -c(A13, A12, A20,A21,A23, A24, A25, A26, A27,A10,A11,A29, A30)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa13, cut = .5, digits = 3)
+```
+
+Poor FL : 0
+
+Poor Comm : A28
+
+#### Remove A13, A12, A20, A21, A23, A24, A25, A26, A27, A10, A11,A29,A30, A28
+
+```{r}
+fa14 = fa(subset(data2, select = -c(A13, A12, A20,A21,A23, A24, A25, A26, A27,A10,A11,A29, A30,A28)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa14, cut = .5, digits = 3)
+```
+
+## Summary
+
+**PA1** : A1, A2, A3, A4, A5, A6
+
+**PA2** : A7, A8, A9
+
+**PA3** : A14,A15,A16,A17,A18,A19,A22
+
+# Internal Consistency Reliability
+
+## Cronbach's Alpha
+
+```{r}
+PA1 = c("A1","A2","A3","A4","A5","A6")
+PA2 = c("A7","A8","A9")
+PA3 = c("A14","A15","A16","A17","A18","A19", "A22")
+```
+
+### PA1
+
+```{r}
+alpha.pa1 = alpha(data2[PA1])
+print(alpha.pa1, digits = 3)
+```
+
+### PA2
+
+```{r}
+alpha.pa2 = alpha(data2[PA2])
+print(alpha.pa2, digits = 3)
+```
+
+### PA3
+
+```{r}
+alpha.pa3 = alpha(data2[PA3])
+print(alpha.pa3, digits = 3)
+```
+
+## 

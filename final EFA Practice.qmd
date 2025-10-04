@@ -1,0 +1,361 @@
+---
+title: "final EFA Practice"
+author: "firdaus"
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: left
+    toc-depth: 6
+    number-sections: true
+    self-contained: true
+editor: visual
+---
+
+This analysis is for Practice section, with selection threshold higher (FL =\>0.5), communality =\> 0.5
+
+# Preliminaries
+
+## Load libraries
+
+```{r}
+library(foreign)  # for importing SPSS data 
+library(psych)  # for psychometrics 
+library(lattice)  # easy to plot multivariate plots 
+library(readxl) 
+library(dplyr)
+```
+
+## Load dataset
+
+```{r}
+data1= read_xlsx("EFA_Practice_V1.xlsx")
+```
+
+```{r}
+names(data1)
+```
+
+```{r}
+head(data1)
+```
+
+## Coding the answers
+
+```{r}
+# Define mapping function
+likert_map <- function(x) {
+  recode <- c(
+    "Tidak pernah" = 1,
+    "Jarang"        = 2,
+    "Kadang-kadang"         = 3,
+    "Selalu"              = 4,
+    "Sentiasa"       = 5
+  )
+  recode[match(tolower(x), tolower(names(recode)))]
+}
+
+# Apply transformation from data1 -> data2
+data2 <- data1
+
+for (col in names(data2)) {
+  data2[[col]] <- likert_map(data2[[col]])
+}
+
+# Convert all to numeric
+data2 <- as.data.frame(lapply(data2, as.numeric))
+
+```
+
+```{r}
+head(data2)
+```
+
+```{r}
+str(data2)
+```
+
+# Exploratory factor analysis
+
+## Descriptive statistics
+
+```{r}
+describe(data2)
+```
+
+## % of response to options per item
+
+```{r}
+response.frequencies(data2)
+```
+
+## Normality of data
+
+### Univariate normality
+
+#### Histogram
+
+```{r}
+cat(names(data2), sep = " + ")
+```
+
+```{r}
+histogram(~ P1 + P2 + P3 + P4 + P5 + P6 + P7 + P8 + P9 + P10 + P11 + P12 + P13 + P14 + P15 + P16 + P17 + P18 + P19 + P20 + P21 + P22 + P23 + P24 + P25 + P26 + P27 + P28, data = data2)
+```
+
+#### Shapiro Wilk's test
+
+```{r}
+mapply(shapiro.test, data2)
+```
+
+#### Multivariate normality
+
+To say the data are multivariate normal:
+
+-   *z*-kurtosis \< 5 ([Bentler, 2006](https://wnarifin.github.io/lecture/mstat/efa_medstat_practical.html#ref-bentler2006)) and the *P*-value should be ≥ 0.05
+
+-   The plot should also form a straight line ([Arifin, 2015](https://wnarifin.github.io/lecture/mstat/efa_medstat_practical.html#ref-arifin2015))
+
+Run Mardia’s multivariate normality test,
+
+```{r}
+mardia(data2)
+```
+
+## Step 1
+
+### Check suitability of data for analysis
+
+#### Kaiser-Meyer-Olkin (KMO) Measure of Sampling Adequacy (MSA)
+
+```{r}
+KMO(data2)
+```
+
+#### Bartlet's test of sphericity
+
+```{r}
+cortest.bartlett(data2)
+```
+
+### Determine the number of factors
+
+#### Eigen value & scree plot
+
+```{r}
+scree = scree(data2)
+print(scree)
+```
+
+#### Parallel analysis
+
+```{r}
+parallel = fa.parallel(data2, fm = "pa", fa = "fa")
+```
+
+#### Very simple structure (VSS) criterion & Velicer's minimum average partial (MAP) criterion)
+
+```{r}
+vss(data2)
+```
+
+## Step 2
+
+### Run EFA 5 factors
+
+Cut off factor loading based on Hair (2019) ( =\> 0.5 practically significant structure)
+
+```{r}
+fa = fa(data2, nfactors = 5, fm = "pa", rotate = "oblimin")
+print(fa, cut = .5, digits = 3)  # cut = .3 to view only FLs > 0.3
+```
+
+No crossing over. But PA4 factor only has 2 items. We cant proceed 2 item per factor, hence 4 factor unsuitable.
+
+### Run EFA 4 factors
+
+```{r}
+fa = fa(data2, nfactors = 4, fm = "pa", rotate = "oblimin")
+print(fa, cut = .5, digits = 3)  # cut = .3 to view only FLs > 0.3
+```
+
+No crossing over. But PA4 factor only has 2 items. We cant proceed 2 item per factor, hence 4 factor unsuitable.
+
+### Run EFA 3 factors
+
+```{r}
+fa = fa(data2, nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa, cut = .5, digits = 3)  # cut = .3 to view only FLs > 0.3
+```
+
+**Poor items identified**
+
+Poor FL : P2, P3, P21
+
+Poor comm : P1, P4, P11, P23, P24
+
+No Crossloading
+
+Factor correlation is all \<0.85
+
+```         
+      PA1   PA3   PA2
+PA1 1.000 0.581 0.447
+```
+
+## Step 3
+
+### Item P2 Removal
+
+```{r}
+fa1 = fa(subset(data2, select = -P2), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa1, cut = .5, digits = 3)
+```
+
+Poor FL : P3, P21
+
+Poor comm : P1, P4, P11, P23, P24
+
+## Step 3
+
+### Item P2, P3 Removal
+
+```{r}
+fa2 = fa(subset(data2, select = -c(P2, P3)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa2, cut = .5, digits = 3)
+```
+
+Poor FL : P21
+
+Poor comm : P1, P4, P11, P23, P24
+
+### Item P2, P3, P21 Removal
+
+```{r}
+fa3 = fa(subset(data2, select = -c(P2, P3, P21)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa3, cut = .5, digits = 3)
+```
+
+Poor FL : 0
+
+Poor comm : P1, P4, P11, P23, P24
+
+### Item P2, P3, P21,P1 Removal
+
+```{r}
+fa4 = fa(subset(data2, select = -c(P2, P3, P21,P1)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa4, cut = .5, digits = 3)
+```
+
+Poor FL : 0
+
+Poor comm : P4, P11, P23, P24
+
+### Item P2, P3, P21,P1,P11 Removal
+
+```{r}
+fa5 = fa(subset(data2, select = -c(P2, P3, P21,P1,P11)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa5, cut = .5, digits = 3)
+```
+
+Poor FL : P4
+
+Poor comm : P23, P24
+
+### Item P2, P3, P21,P1,P11,P4 Removal
+
+```{r}
+fa6 = fa(subset(data2, select = -c(P2, P3, P21,P1,P11,P4)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa6, cut = .5, digits = 3)
+```
+
+Poor FL : P18,P19
+
+Poor comm : P23, P24
+
+### Item P2, P3, P21,P1,P11,P4,P18 Removal
+
+```{r}
+fa7 = fa(subset(data2, select = -c(P2, P3, P21,P1,P11,P4,P18)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa7, cut = .5, digits = 3)
+```
+
+Poor FL : P19
+
+Poor comm : P20, P23, P24
+
+### Item P2, P3, P21,P1,P11,P4,P18, P19 Removal
+
+```{r}
+fa8 = fa(subset(data2, select = -c(P2, P3, P21,P1,P11,P4,P18,P19)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa8, cut = .5, digits = 3)
+```
+
+Poor FL : P20
+
+Poor comm : P23, P24
+
+### Item P2, P3, P21,P1,P11,P4,P18, P19,P20 Removal
+
+```{r}
+fa9 = fa(subset(data2, select = -c(P2, P3, P21,P1,P11,P4,P18,P19,P20)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa9, cut = .5, digits = 3)
+```
+
+Poor FL : P23
+
+Poor comm : P24
+
+### Item P2, P3, P21,P1,P11,P4,P18, P19, P20, P23 Removal
+
+```{r}
+fa10 = fa(subset(data2, select = -c(P2, P3, P21,P1,P11,P4,P18,P19,P20,P23)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa10, cut = .5, digits = 3)
+```
+
+### Item P2, P3, P21,P1,P11,P4,P18, P19, P20, P23, P24 Removal
+
+```{r}
+fa11 = fa(subset(data2, select = -c(P2, P3, P21,P1,P11,P4,P18,P19,P20,P23,P24)), nfactors = 3, fm = "pa", rotate = "oblimin")
+print(fa11, cut = .5, digits = 3)
+```
+
+## Summary
+
+**PA1** : P5, P6, P7, P8, P9P, 10, P12, P22
+
+**PA2** : P13, P14,P15,P16,P17
+
+**PA3** : P25,P26,P27,P28
+
+# Internal Consistency Reliability
+
+## Cronbach's Alpha
+
+```{r}
+PA1 = c("P5","P6","P7","P8","P9","P10", "P12", "P22")
+PA2 = c("P13","P14","P15","P16","P17")
+PA3 = c("P25","P26","P27","P28")
+```
+
+### PA1
+
+```{r}
+alpha.pa1 = alpha(data2[PA1])
+print(alpha.pa1, digits = 3)
+```
+
+### PA2
+
+```{r}
+alpha.pa2 = alpha(data2[PA2])
+print(alpha.pa2, digits = 3)
+```
+
+### PA3
+
+```{r}
+alpha.pa3 = alpha(data2[PA3])
+print(alpha.pa3, digits = 3)
+```
