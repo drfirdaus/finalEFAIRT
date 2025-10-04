@@ -1,0 +1,428 @@
+---
+title: "final IRT Knowledge"
+author: "firdaus"
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: left
+    toc-depth: 6
+    number-sections: true
+    self-contained: true
+editor: visual
+---
+
+# Prepare Environment
+
+## Load Libraries
+
+```{r}
+library(psych)        # For basic psychometrics and scale reliability analysis
+library(foreign)      # For reading and writing data in foreign statistical formats
+library(ltm)          # To fit 2PL IRT models and other latent trait models
+library(irtoys)       # For IRT utilities
+library(mirt)         # Modern IRT package for multi-item response theory
+library(latticeExtra) # For enhanced plotting in lattice-based plots
+library(tidyverse)    # For data manipulation, cleaning, and visualization
+library(haven)        # For importing and exporting SPSS, Stata, and SAS files
+library(writexl)      # For exporting data frames to Excel files
+library(readxl)       # For reading data from Excel files
+library(mokken)
+```
+
+## Load Data
+
+```{r}
+data1=read_xlsx("IRT_knowledge_V1.xlsx") ##read data from Excel 
+names(data1) # List down variables in the data set
+dim(data1)  # Data set consists of 37 variables and 177 parents
+```
+
+### Recode Data
+
+```{r}
+# Define reverse-coded items
+reverse_items <- c("K2", "K3", "K4", "K5", "K8", "K10", "K35")
+
+# Recode
+data2 <- data1 %>%
+  mutate(across(
+    -all_of(reverse_items), 
+    ~ case_when(
+      tolower(.) == "ya" ~ 1,
+      tolower(.) == "tidak" ~ 0,
+      tolower(.) == "tidak pasti" ~ 2,
+      TRUE ~ NA_real_
+    )
+  )) %>%
+  mutate(across(
+    all_of(reverse_items),
+     ~ case_when(
+      tolower(.) == "ya" ~ 0,
+      tolower(.) == "tidak" ~ 1,
+      tolower(.) == "tidak pasti" ~ 2,
+      TRUE ~ NA_real_
+    )
+  ))
+```
+
+```{r}
+#Recode 1 = 1 (correct answer), 2 and 0 = 0 (incorrect answer)
+
+data3 <- data2 %>%
+  mutate(across(
+    everything(),
+    ~ case_when(
+      . == 1 ~ 1,
+      . %in% c(0, 2) ~ 0,
+      TRUE ~ NA_real_
+    )
+  ))
+```
+
+# Descriptive Statistics
+
+## Response Frequencies
+
+```{r}
+response.frequencies(data3)
+```
+
+## Descriptive Statistics
+
+```{r}
+descript(data3)
+```
+
+# Perform IRT Analysis
+
+### Fitting 2PL IRT Model with `ltm` Package
+
+```{r}
+irt.data3 <- ltm(data3 ~ z1, IRT.param = TRUE)
+```
+
+### Identifying Item Parameter (Difficulty & Discimination) Estimates
+
+```{r}
+# Obtain difficulty and discrimination parameter estimates
+item_parms <- coef(irt.data3)
+```
+
+```{r}
+# Tidy view: Item | a (Discrimination) | b (Difficulty)
+
+item_parms_tbl <- item_parms |>
+  as.data.frame() |>
+  transform(Item = rownames(item_parms),
+            Difficulty = Dffclt,
+            Discrimination = Dscrmn) |>
+  (\(d) d[, c("Item", "Difficulty", "Discrimination")])() |>
+  (\(d) within(d, { 
+    Difficulty <- round(Difficulty, 3)
+    Discrimination <- round(Discrimination, 3)
+  }))()
+
+item_parms_tbl
+```
+
+### Model Summary
+
+```{r}
+# Includes log-likelihood, AIC/BIC, SEs, and Wald z-values
+summary(irt.data3)
+```
+
+## Items Removal Plan
+
+**Selection criteria a \> 0.64 (moderate discrimination) (Baker, 2001) ; -3 \< b \> +3**
+
+K2 - a = 0.47
+
+K3 - a = 0.39
+
+K5 - a = 0.08 , b = -9.3762
+
+K7 - a = 0.26
+
+K8 - a = 0.20
+
+K9 - a = 0.33
+
+K10 - a = 0.30
+
+K11 - a = 0.35
+
+K24 - a = 16.9641 (?Overfitting)
+
+K35 - a = 0.31
+
+### 2PL Model - Remove Items
+
+```{r}
+# Remove the items
+irt_removed_items <- c("K2", "K3", "K5", "K7", "K8", "K9", "K10", "K11","K24","K35")
+
+# Create new dataset with only included items
+data4 <- data3 %>% dplyr::select(-any_of(irt_removed_items))
+```
+
+## Refit 2PL Model
+
+```{r}
+descript(data4)
+```
+
+```{r}
+irt.data4 <- ltm(data4 ~ z1, IRT.param = TRUE)
+```
+
+## Summary after Removal Based on Discrimination & Difficulty
+
+```{r}
+# Obtain difficulty and discrimination parameter estimates
+item_parms_refined <- coef(irt.data4)
+
+# Tidy view: Item | a (Discrimination) | b (Difficulty)
+
+item_parms_refined_tbl <- item_parms_refined |>
+  as.data.frame() |>
+  transform(Item = rownames(item_parms_refined),
+            Difficulty = Dffclt,
+            Discrimination = Dscrmn) |>
+  (\(d) d[, c("Item", "Difficulty", "Discrimination")])() |>
+  (\(d) within(d, { 
+    Difficulty <- round(Difficulty, 3)
+    Discrimination <- round(Discrimination, 3)
+  }))()
+
+item_parms_refined_tbl
+```
+
+# Graphical Presentation
+
+## Item Characteristic Curves (ICC)
+
+```{r}
+# ICC for All Items
+# Plot ICC for all items
+plot(irt.data4, type = "ICC", legend = TRUE)
+```
+
+**Overall pattern.** The retained items showed generally monotonic S-shapes with moderate–high slopes.
+
+```{r}
+# ICC for Individual Items
+
+# Get total number of items
+ICC_items <- nrow(coef(irt.data4))
+
+# Plot ICC for each item
+for (i in 1:ICC_items) {
+  plot(irt.data4, type = "ICC", legend = TRUE, items = i)
+}
+```
+
+## Item Trace Lines (Item Characteristic Curves)
+
+```{r}
+# Fitting 2PL IRT Model with `mirt` Package
+mirt.data4 = mirt(data4, 1, itemtype = "2PL")
+coef(mirt.data4, IRTpars = T, simplify = T)
+```
+
+```{r}
+plot(mirt.data4, type = "trace")
+```
+
+**Overall pattern.** Most retained items displayed clean, monotonic S-curves with **moderate slopes** and inflection points concentrated from approximately **θ ≈ −1.5 to +1.6**, indicating strongest measurement in the low-to-mid range of the construct.
+
+## Item Information Curves
+
+```{r}
+plot(mirt.data4, type = "infotrace")
+```
+
+The retained items concentrated information around the **low-to-mid range of θ** (approximately θ ≈ −1.5 to +1.6), with limited information at the extreme tails. This matches the ICCs and suggests the scale is most precise for respondents near the center of the trait continuum.
+
+## Test Information Function
+
+```{r}
+plot(mirt.data4, type = "info")
+```
+
+The TIF shows a **single dominant peak in the low-to-mid range of** θ\thetaθ (approximately θ≈−1.5\theta\approx -1.5θ≈−1.5 to +1.6+1.6+1.6), indicating the scale is most precise for respondents around the center of the trait continuum.
+
+## Test Information and Standard Error
+
+```{r}
+plot(mirt.data4, type = "infoSE")
+```
+
+The test information peaked in the **low-to-mid range of** θ\thetaθ (≈ −1.5 to +1.6), indicating the instrument is most precise near the center of the trait. Information tapered toward both tails, yielding larger SE(θ)\mathrm{SE}(\theta)SE(θ) at very low and very high trait levels—consistent with the ICC/IIC findings.
+
+## Expected Total Score
+
+```{r}
+plot(mirt.data4)
+```
+
+The TCC is **monotonically increasing** and **S-shaped**. In our plots, the curve rises most steeply in the **low-to-mid range of θ** (≈ −1.5 to +1.6), consistent with the ICC/IIC and TIF results. This indicates that **raw scores are most sensitive to changes in θ** around the center of the trait continuum; at the extreme low/high ends the curve flattens, so equal changes in θ translate into **smaller changes in expected raw score**.
+
+## Test Information
+
+```{r}
+areainfo(mirt.data4, c(-3,3))
+```
+
+These results indicate that the instrument is well targeted to typical respondents around the center of the trait continuum; precision naturally tapers beyond ±3.
+
+## Reliability Estimates
+
+### Marginal Reliability
+
+```{r}
+marginal_rxx(mirt.data4)
+```
+
+Marginal (EAP) reliability for the unidimensional 2PL solution was **0.896** using `marginal_rxx()`, indicating that approximately **89.6%** of the variance in estimated trait scores reflects true variance.
+
+### Empirical Reliability
+
+```{r}
+theta_se = fscores(mirt.data4, full.scores.SE = TRUE)
+empirical_rxx(theta_se)
+```
+
+**Reliability.** Score precision was evaluated two ways. The **marginal (model-based) EAP reliability** was **0.896**, whereas the **empirical EAP reliability** computed from person-specific posterior SEs was **0.910**.
+
+# Checking Assumptions After Removal
+
+## Unidimensionality
+
+```{r}
+set.seed(2025)
+unidimTest(irt.data4) #Take A long time, insert # if want to skip and avoid long time
+```
+
+To evaluate the assumption of unidimensionality, we conducted a Monte Carlo–based unidimensionality test. The second eigenvalue of the observed data (3.30) was significantly larger than the expected second eigenvalue under a unidimensional IRT model (M = 1.85 across 100 Monte Carlo replications), p = 0.0099. This result indicates that the assumption of strict unidimensionality was violated. Nevertheless, given that IRT analyses can remain valid under the condition of essential unidimensionality, further evaluation of local dependence was conducted to determine whether item misfit was attributable to residual correlations between items.
+
+### Checking Dominant Factor (Essential Unidimensionality)
+
+```{r}
+# Extract the response data from the fitted model
+irt_mat <- as.matrix(irt.data4$X)
+
+# Parallel analysis
+library(psych)
+fa.parallel(irt_mat, fa="fa")
+```
+
+```{r}
+# Eigenvalues
+ev <- eigen(cor(irt_mat, use = "pairwise.complete.obs"))$values
+
+# First and second eigenvalues
+first_ev <- ev[1]
+second_ev <- ev[2]
+
+# Ratio
+dominance_ratio <- first_ev / second_ev
+
+# Print
+first_ev
+second_ev
+dominance_ratio
+```
+
+To further assess dimensionality, we conducted a parallel analysis on the item response data. The first eigenvalue (≈ 8.5) was substantially larger than the second eigenvalue (≈ 2.), yielding a dominance ratio of approximately ≈ 3.6. This indicates the presence of a strong primary dimension. However, parallel analysis suggested that up to seven factors had eigenvalues greater than those obtained from simulated data, implying the presence of additional weaker dimensions. Together with the results of the unidimensionality test, these findings suggest that the scale may not be strictly unidimensional. Nevertheless, the strength of the first factor relative to subsequent factors supports the assumption of essential unidimensionality, allowing the application of unidimensional IRT models with caution (Hambleton et al., 1991; Reise et al., 2007).
+
+## Local Independence
+
+### Yen’s Q3 residual correlations
+
+```{r}
+# Extract the raw item response matrix from the ltm object
+irt_mat <- as.data.frame(irt.data4$X)   # now it's a dataframe
+irt_mat <- as.matrix(irt_mat)           # convert to numeric matrix
+
+
+
+mod2pl <- mirt(irt_mat, 1, itemtype = "2PL")
+mod1pl <- mirt(irt_mat, 1, itemtype = "Rasch")
+```
+
+```{r}
+Q3_resid <- residuals(mod2pl, type = "Q3")
+
+Q3_resid   # inspect residual correlations (Q3 > .20 may indicate local dependence)
+```
+
+### Chen & Thissen’s LD χ² statistic
+
+```{r}
+# Chen & Thissen’s LD χ² statistic
+LD_resid <- residuals(mod2pl, type = "LD")
+LD_resid  # values > 10 indicate local dependence
+```
+
+We evaluated residual local dependence using Yen’s Q3 residual correlations and Chen & Thissen’s LD χ² index. Following common guidelines, Q3 values \> .20 and LD χ² \> 10 were flagged as indicative of local dependence. Several item pairs exhibited notable dependence, including K15–K16 (Q3 = .80; LD χ² = 70.60), K27–K28 (Q3 = .56; LD χ² = 37.56), K29–K26 (Q3 = .50; LD χ² = 33.47), K33–K32 (Q3 = .58; LD χ² = 25.42), K25–K23 (Q3 = .70; LD χ² = 20.57), K20–K25 (LD χ² = 20.02), K14–K16 (Q3 = .36; LD χ² = 17.86), K36–K19 (LD χ² = 17.78), and K4–K6 (Q3 = .30; LD χ² = 16.31), among others. These patterns suggest clusters of items with overlapping content or shared stimuli (e.g., K13–K16; K27–K30; K20–K25; K32–K33; K34–K37), consistent with the rejection of strict unidimensionality in the Monte Carlo test and the parallel analysis indicating multiple weaker factors.
+
+## Goodness-of-Fit Tests
+
+### Global fit statistics
+
+```{r}
+M2(mod2pl)   # RMSEA < 0.08 and SRMSR < 0.05 = good fit
+```
+
+### Item Fit Statistics
+
+```{r}
+item_fit <- item.fit(irt.data4)
+item_fit
+```
+
+### Fit on the Two-Way Margins
+
+```{r}
+margins_output <- margins(irt.data4)
+margins_output
+```
+
+### Person Fit Statistics
+
+```{r}
+person_fit <- person.fit(irt.data4)
+person_fit
+```
+
+# Summary
+
+## Item Removed
+
+K2 - a = 0.47
+
+K3 - a = 0.39
+
+K5 - a = 0.08 , b = -9.3762
+
+K7 - a = 0.26
+
+K8 - a = 0.20
+
+K9 - a = 0.33
+
+K10 - a = 0.30
+
+K11 - a = 0.35
+
+K24 - a = 16.9641 (?Overfitting)
+
+K35 - a = 0.31
+
+## Remaining Items
+
+```{r}
+summary(irt.data4)
+```
