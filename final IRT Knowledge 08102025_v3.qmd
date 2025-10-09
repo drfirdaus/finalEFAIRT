@@ -1,0 +1,620 @@
+---
+title: "Final IRT – Knowledge (by Subdomain) v3"
+author: "Firdaus"
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: left
+    toc-depth: 6
+    number-sections: true
+    self-contained: true
+editor: visual
+---
+
+This analysis uses thresholds: Discrimination a ≥ 0.65 (moderate) and Difficulty −3 ≤ b ≤ +3 (Baker, 2001).
+
+# Prepare Environment
+
+## Load Libraries
+
+```{r}
+library(psych)        # descriptives
+library(foreign)
+library(ltm)          # 2PL via ltm()
+library(irtoys)       # est(), trf()
+library(mirt)         # modern IRT, M2, reliabilities
+library(latticeExtra)
+library(tidyverse)
+library(haven)
+library(writexl)
+library(readxl)
+library(mokken)
+
+
+```
+
+## Load Data
+
+```{r}
+data1 <- read_xlsx("IRT_knowledge_V1.xlsx")  # read data from Excel 
+names(data1)                                  # List variables
+dim(data1)                                    # Expect 37 items x 177 parents
+
+```
+
+### Recode Data
+
+Assumes the response options are exactly: "Ya", "Tidak", "Tidak pasti" (case/spacing handled).
+Reverse-keyed items: K2, K3, K4, K5, K8, K10, K35.
+
+```{r}
+# Reverse-coded items (as in your script)
+reverse_items <- c("K2", "K3", "K4", "K5", "K8", "K10", "K35")
+
+# FIX: ensure we're only recoding item columns (K1:K37) and handle case safely
+item_names <- paste0("K", 1:37)
+
+data2 <- data1 %>%
+  mutate(across(
+    .cols = setdiff(item_names, reverse_items), 
+    .fns  = ~ case_when(
+      tolower(as.character(.)) == "ya"           ~ 1,
+      tolower(as.character(.)) == "tidak"        ~ 0,
+      tolower(as.character(.)) == "tidak pasti"  ~ 2,
+      TRUE ~ NA_real_
+    )
+  )) %>%
+  mutate(across(
+    .cols = reverse_items,
+    .fns  = ~ case_when(
+      tolower(as.character(.)) == "ya"           ~ 0,
+      tolower(as.character(.)) == "tidak"        ~ 1,
+      tolower(as.character(.)) == "tidak pasti"  ~ 2,
+      TRUE ~ NA_real_
+    )
+  ))
+
+
+```
+### Recode to Dichotomous
+
+```{r}
+# Recode to dichotomous: 1 = correct; 0 or 2 = incorrect
+data3 <- data2 %>%
+  mutate(across(
+    .cols = all_of(item_names),
+    .fns  = ~ case_when(
+      . == 1 ~ 1,
+      . %in% c(0, 2) ~ 0,
+      TRUE ~ NA_real_
+    )
+  )) %>%
+  select(all_of(item_names))   # keep item columns only
+
+summary(data3)
+
+```
+
+
+### Create Subset Following Theoretical Domain
+
+```{r}
+domain1 <- data3[, 1:6]
+domain2 <- data3[, 7:12]
+domain3 <- data3[, 13:17]
+domain4 <- data3[, 18:25]
+domain5 <- data3[, 26:33]
+domain6 <- data3[, 34:37]
+
+  
+```
+
+
+
+# Domain 1
+
+```{r}
+descript(domain1)
+
+```
+
+```{r}
+irt.domain1 <- ltm(domain1 ~ z1, IRT.param = TRUE)
+coef(irt.domain1)
+summary(irt.domain1)
+```
+
+
+
+
+## Remove K5
+
+```{r}
+domain1.2 <- domain1[, setdiff(names(domain1), "K5")]
+
+```
+
+```{r}
+irt.domain1.2 <- ltm(domain1.2 ~ z1, IRT.param = TRUE)
+coef(irt.domain1.2)
+summary(irt.domain1.2)
+
+```
+
+## Graphical Presentation
+
+```{r}
+plot(irt.domain1.2, type = "ICC", legend = TRUE)  # Item Characteristic Curves
+plot(irt.domain1.2, type = "IIC", legend = TRUE)  # Item Information Curves
+plot(irt.domain1.2, items = 0, type = "IIC")      # Test Information Function
+information(irt.domain1.2, c(-3,3))               # Test info in [-3,3]
+
+```
+
+
+```{r}
+# FIX: irtoys::est expects a 0/1 matrix/data.frame; use the current domain data
+plot(trf(est(domain1.2, model = "2PL", engine = "ltm")))  # Test Characteristic Curve
+
+```
+
+
+## Unidimensionality Test
+```{r}
+set.seed(2025)
+# FIX: unidimTest on data (not on ltm object)
+unidimTest(irt.domain1.2) 
+
+```
+
+```{r}
+mirt.domain1.2 <- mirt(domain1.2, 1, itemtype = "2PL")
+coef(mirt.domain1.2, IRTpars = TRUE, simplify = TRUE)
+areainfo(mirt.domain1.2, c(-3,3))   # test info (mirt)
+
+
+```
+
+## Fit Test
+
+```{r}
+
+margins(irt.domain1.2)          # Two-way margins fit (ltm)
+person.fit(irt.domain1.2)       # Person-fit (ltm)
+
+itemfit(mirt.domain1.2, fit_stats = "S_X2")
+
+
+M2(mirt.domain1.2)                  # M2 (may be NA/err if too few df)
+marginal_rxx(mirt.domain1.2)        # marginal reliability
+
+theta_se.domain1.2 <- fscores(mirt.domain1.2, full.scores.SE = TRUE)
+empirical_rxx(theta_se.domain1.2)
+```
+
+
+# Domain 2
+
+```{r}
+descript(domain2)
+
+irt.domain2 <- ltm(domain2 ~ z1, IRT.param = TRUE)
+coef(irt.domain2)
+summary(irt.domain2)
+
+
+
+
+
+```
+
+## Graphical Presentation
+```{r}
+plot(irt.domain2, type = "ICC", legend = TRUE)
+plot(irt.domain2, type = "IIC", legend = TRUE)
+plot(irt.domain2, items = 0, type = "IIC")
+information(irt.domain2, c(-3,3))
+
+```
+
+
+
+```{r}
+mirt.domain2 <- mirt(domain2, 1, itemtype = "2PL")
+areainfo(mirt.domain2, c(-3,3))
+plot(trf(est(domain2, model = "2PL", engine = "ltm")))
+margins(irt.domain2)
+person.fit(irt.domain2)
+
+
+```
+
+## Unidimensionality Test
+
+```{r}
+set.seed(2025)
+unidimTest(irt.domain2)
+
+coef(mirt.domain2, IRTpars = TRUE, simplify = TRUE)
+
+
+```
+
+## Fit Test
+
+```{r}
+itemfit(mirt.domain2, fit_stats = "S_X2")
+M2(mirt.domain2)
+marginal_rxx(mirt.domain2)
+
+theta_se.domain2 <- fscores(mirt.domain2, full.scores.SE = TRUE)
+empirical_rxx(theta_se.domain2)
+```
+
+
+
+# Domain 3
+
+```{r}
+descript(domain3)
+
+irt.domain3 <- ltm(domain3 ~ z1, IRT.param = TRUE)
+coef(irt.domain3)
+summary(irt.domain3)
+
+```
+
+## Remove K16 then K15
+
+```{r}
+domain3.1 <- domain3[, setdiff(names(domain3), "K16")]
+irt.domain3.1 <- ltm(domain3.1 ~ z1, IRT.param = TRUE)
+coef(irt.domain3.1)
+
+domain3.2 <- domain3.1[, setdiff(names(domain3.1), "K15")]
+irt.domain3.2 <- ltm(domain3.2 ~ z1, IRT.param = TRUE)
+coef(irt.domain3.2)
+
+```
+## Graphical Presentation
+
+```{r}
+plot(irt.domain3.2, type = "ICC", legend = TRUE)
+plot(irt.domain3.2, type = "IIC", legend = TRUE)
+plot(irt.domain3.2, items = 0, type = "IIC")
+information(irt.domain3.2, c(-3,3))
+
+mirt.domain3.2 <- mirt(domain3.2, 1, itemtype = "2PL")
+areainfo(mirt.domain3.2, c(-3,3))
+plot(trf(est(domain3.2, model = "2PL", engine = "ltm")))
+
+
+
+
+```
+## Unidimensionality Test
+
+```{r}
+set.seed(2025)
+unidimTest(irt.domain3.2)
+
+coef(mirt.domain3.2, IRTpars = TRUE, simplify = TRUE)
+
+# If M2 errors (too few df), just skip:
+# M2(mirt.domain3.2)
+
+
+```
+
+## Fit test
+
+```{r}
+
+#itemfit(mirt.domain3.2, fit_stats = "S_X2") Error: Statistic cannot be calculated (too few degrees of freedom)
+#M2(mirt.domain3.2) Error: Statistic cannot be calculated (too few degrees of freedom)
+
+margins(irt.domain3.2)
+person.fit(irt.domain3.2)
+
+marginal_rxx(mirt.domain3.2)
+theta_se.domain3.2 <- fscores(mirt.domain3.2, full.scores.SE = TRUE)
+empirical_rxx(theta_se.domain3.2)
+```
+
+
+# Domain 4
+
+```{r}
+descript(domain4)
+
+irt.domain4 <- ltm(domain4 ~ z1, IRT.param = TRUE)
+coef(irt.domain4)
+summary(irt.domain4)
+
+```
+
+## Remove K25 → K22 → K20
+
+```{r}
+domain4.1 <- domain4[, setdiff(names(domain4), "K25")]
+irt.domain4.1 <- ltm(domain4.1 ~ z1, IRT.param = TRUE); coef(irt.domain4.1)
+
+domain4.2 <- domain4.1[, setdiff(names(domain4.1), "K22")]
+irt.domain4.2 <- ltm(domain4.2 ~ z1, IRT.param = TRUE); coef(irt.domain4.2)
+
+domain4.3 <- domain4.2[, setdiff(names(domain4.2), "K20")]
+irt.domain4.3 <- ltm(domain4.3 ~ z1, IRT.param = TRUE); coef(irt.domain4.3)
+
+```
+
+## Graphical Presentation
+```{r}
+plot(irt.domain4.3, type = "ICC", legend = TRUE)
+plot(irt.domain4.3, type = "IIC", legend = TRUE)
+plot(irt.domain4.3, items = 0, type = "IIC")
+information(irt.domain4.3, c(-3,3))
+
+mirt.domain4.3 <- mirt(domain4.3, 1, itemtype = "2PL")
+areainfo(mirt.domain4.3, c(-3,3))
+plot(trf(est(domain4.3, model = "2PL", engine = "ltm")))
+
+
+
+
+```
+## Unidimensionality Test
+
+```{r}
+set.seed(2025)
+unidimTest(irt.domain4.3)
+
+coef(mirt.domain4.3, IRTpars = TRUE, simplify = TRUE)
+
+
+
+```
+
+## Fit test
+
+```{r}
+margins(irt.domain4.3)
+person.fit(irt.domain4.3)
+
+itemfit(mirt.domain4.3, fit_stats = "S_X2")
+M2(mirt.domain4.3)
+
+marginal_rxx(mirt.domain4.3)
+theta_se.domain4.3 <- fscores(mirt.domain4.3, full.scores.SE = TRUE)
+empirical_rxx(theta_se.domain4.3)
+```
+
+
+# Domain 5
+
+```{r}
+descript(domain5)
+
+irt.domain5 <- ltm(domain5 ~ z1, IRT.param = TRUE)
+coef(irt.domain5)
+summary(irt.domain5)
+
+```
+
+## Remove K31
+
+```{r}
+domain5.1 <- domain5[, setdiff(names(domain5), "K31")]
+irt.domain5.1 <- ltm(domain5.1 ~ z1, IRT.param = TRUE); coef(irt.domain5.1)
+
+```
+## Graphical Presentation
+
+```{r}
+plot(irt.domain5.1, type = "ICC", legend = TRUE)
+plot(irt.domain5.1, type = "IIC", legend = TRUE)
+plot(irt.domain5.1, items = 0, type = "IIC")
+information(irt.domain5.1, c(-3,3))
+
+mirt.domain5.1 <- mirt(domain5.1, 1, itemtype = "2PL")
+areainfo(mirt.domain5.1, c(-3,3))
+plot(trf(est(domain5.1, model = "2PL", engine = "ltm")))
+
+
+
+
+```
+## Unidimensionality Test
+
+```{r}
+set.seed(2025)
+unidimTest(irt.domain5.1)
+
+coef(mirt.domain5.1, IRTpars = TRUE, simplify = TRUE)
+
+
+
+```
+
+## Fit test
+
+```{r}
+margins(irt.domain5.1)
+person.fit(irt.domain5.1)
+
+itemfit(mirt.domain5.1, fit_stats = "S_X2")
+M2(mirt.domain5.1)
+marginal_rxx(mirt.domain5.1)
+theta_se.domain5.1 <- fscores(mirt.domain5.1, full.scores.SE = TRUE)
+empirical_rxx(theta_se.domain5.1)
+```
+
+
+
+#### Checking Dominant Factor
+
+```{r}
+# Extract the response data from the fitted model
+irt_mat5.1 <- as.matrix(irt.domain5.1$X)
+
+# Parallel analysis
+library(psych)
+fa.parallel(irt_mat5.1, fa="fa")
+```
+
+```{r}
+# Eigenvalues
+ev <- eigen(cor(irt_mat5.1, use = "pairwise.complete.obs"))$values
+
+# First and second eigenvalues
+first_ev <- ev[1]
+second_ev <- ev[2]
+
+# Ratio
+dominance_ratio <- first_ev / second_ev
+
+# Print
+first_ev
+second_ev
+dominance_ratio
+```
+
+# Domain 6
+
+```{r}
+descript(domain6)
+
+irt.domain6 <- ltm(domain6 ~ z1, IRT.param = TRUE)
+coef(irt.domain6)
+
+```
+
+## Remove K36 
+
+```{r}
+domain6.1 <- domain6[, setdiff(names(domain6), "K36")]
+irt.domain6.1 <- ltm(domain6.1 ~ z1, IRT.param = TRUE); coef(irt.domain6.1)
+
+summary(irt.domain6.1)
+
+```
+
+
+## Graphical Presentation
+
+```{r}
+plot(irt.domain6.1, type = "ICC", legend = TRUE)
+plot(irt.domain6.1, type = "IIC", legend = TRUE)
+plot(irt.domain6.1, items = 0, type = "IIC")
+information(irt.domain6.1, c(-3,3))
+
+
+mirt.domain6.1 <- mirt(domain6.1, 1, itemtype = "2PL")
+areainfo(mirt.domain6.1, c(-3,3))
+plot(trf(est(domain6.1, model = "2PL", engine = "ltm")))
+
+coef(mirt.domain6.1, IRTpars = TRUE, simplify = TRUE)
+```
+## Unidimensionality Test
+
+```{r}
+
+set.seed(2025)
+unidimTest(irt.domain6.1)
+
+```
+## Fit test
+```{r}
+
+margins(irt.domain6.1) 
+person.fit(irt.domain6.1)
+
+itemfit(mirt.domain6.1, fit_stats = "S_X2")
+#M2(mirt.domain6.1) ## Error: Statistic cannot be calculated (too few degrees of freedom)
+marginal_rxx(mirt.domain6.1)
+theta_se.domain6.1 <- fscores(mirt.domain6.1, full.scores.SE = TRUE)
+empirical_rxx(theta_se.domain6.1)
+
+```
+
+
+# Summary
+
+```{r}
+# ----- SUMMARY: retained/removed + final a,b per retained item (no Excel export) -----
+
+# Pick the first object name that exists
+choose_first_existing <- function(...) {
+  nms <- c(...)
+  for (nm in nms) if (exists(nm)) return(nm)
+  return(NA_character_)
+}
+
+# Original domain data frames (base splits)
+orig_df_names <- list(
+  D1 = choose_first_existing("domain1"),
+  D2 = choose_first_existing("domain2"),
+  D3 = choose_first_existing("domain3"),
+  D4 = choose_first_existing("domain4"),
+  D5 = choose_first_existing("domain5"),
+  D6 = choose_first_existing("domain6")
+)
+
+# Final domain data frames after your removals (adjust if you used other names)
+final_df_names <- list(
+  D1 = choose_first_existing("domain1.2", "domain1"),
+  D2 = choose_first_existing("domain2.2", "domain2.1", "domain2"),
+  D3 = choose_first_existing("domain3.2", "domain3.1", "domain3"),
+  D4 = choose_first_existing("domain4.3", "domain4.2", "domain4.1", "domain4"),
+  D5 = choose_first_existing("domain5.1", "domain5"),
+  D6 = choose_first_existing("domain6.1", "domain6")
+)
+
+# Compute final a,b from ltm on the final data frame
+get_ab <- function(df_name){
+  if (is.na(df_name) || !exists(df_name)) return(NULL)
+  df <- get(df_name)
+  if (ncol(df) < 2) return(NULL)  # ltm may fail with <2 items
+  mod <- try(ltm(df ~ z1, IRT.param = TRUE), silent = TRUE)
+  if (inherits(mod, "try-error")) return(NULL)
+  cf <- coef(mod)
+  out <- data.frame(
+    item = rownames(cf),
+    a = as.numeric(cf[, "Dscrmn"]),
+    b = as.numeric(cf[, "Dffclt"]),
+    row.names = NULL
+  )
+  out$a <- round(out$a, 3)
+  out$b <- round(out$b, 3)
+  out
+}
+
+# Print summary per domain
+for (dn in names(orig_df_names)) {
+  orig_nm  <- orig_df_names[[dn]]
+  final_nm <- final_df_names[[dn]]
+
+  orig_items  <- if (!is.na(orig_nm)  && exists(orig_nm))  names(get(orig_nm))  else character(0)
+  final_items <- if (!is.na(final_nm) && exists(final_nm)) names(get(final_nm)) else character(0)
+  removed_items <- setdiff(orig_items, final_items)
+
+  cat("\n==============================\n")
+  cat("Domain:", dn, "\n")
+  cat("Retained (", length(final_items), "): ",
+      if (length(final_items)) paste(final_items, collapse = ", ") else "—", "\n", sep = "")
+  cat("Removed  (", length(removed_items), "): ",
+      if (length(removed_items)) paste(removed_items, collapse = ", ") else "—", "\n", sep = "")
+
+  ab_tab <- get_ab(final_nm)
+  if (!is.null(ab_tab)) {
+    cat("\nFinal item parameters (2PL; a = discrimination, b = difficulty):\n")
+    print(ab_tab, row.names = FALSE)
+  } else {
+    cat("\nFinal item parameters: not available (too few items or model failed to fit).\n")
+  }
+}
+cat("\n")
+
+```
+
+
